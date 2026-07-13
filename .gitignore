@@ -1,0 +1,13 @@
+# Ignore all images of specific formats everywhere
+*.png
+*.jpg
+*.jpeg
+
+# Ignore archive and compressed files
+*.zip
+*.tar
+*.gz
+*.rar
+
+# Ignore environment files
+env

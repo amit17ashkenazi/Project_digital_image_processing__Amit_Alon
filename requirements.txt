@@ -1,0 +1,4 @@
+fiftyone==0.24.0
+opencv-python==4.10.0.84
+numpy
+matplotlib
