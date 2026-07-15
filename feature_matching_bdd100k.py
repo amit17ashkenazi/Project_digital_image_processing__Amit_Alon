@@ -23,6 +23,7 @@ Feature Matching על תמונות מ-BDD100K
 """
 
 import os
+import re
 import cv2
 import csv
 import glob
@@ -61,10 +62,15 @@ def get_matcher(method="orb"):
 # עיבוד זוג תמונות
 # --------------------------------------------------------------------------
 def process_pair(img1_path, img2_path, method="orb", n_features=2000,
-                  ratio_thresh=0.75, ransac_thresh=5.0, output_dir="./output"):
+                  ratio_thresh=0.75, ransac_thresh=5.0, output_dir="./output",
+                  save_visualization=True, img1_override=None, img2_override=None):
+    """img1_path/img2_path are used for naming/metrics either way. If
+    img1_override/img2_override (BGR arrays) are given, they are matched
+    instead of re-reading from disk -- lets callers feed an in-memory
+    distorted image without ever writing it to disk."""
 
-    img1 = cv2.imread(img1_path, cv2.IMREAD_COLOR)
-    img2 = cv2.imread(img2_path, cv2.IMREAD_COLOR)
+    img1 = img1_override if img1_override is not None else cv2.imread(img1_path, cv2.IMREAD_COLOR)
+    img2 = img2_override if img2_override is not None else cv2.imread(img2_path, cv2.IMREAD_COLOR)
 
     if img1 is None or img2 is None:
         print(f"[WARN] Could not read: {img1_path} or {img2_path}")
@@ -131,29 +137,52 @@ def process_pair(img1_path, img2_path, method="orb", n_features=2000,
     }
 
     # ויזואליזציה - נציג רק את ה-Good Matches (או עד 100 מהם לצורך בהירות)
-    draw_matches = sorted(good_matches, key=lambda m: m.distance)[:100]
-    vis = cv2.drawMatches(
-        img1, kp1, img2, kp2, draw_matches, None,
-        flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
-    )
+    vis_path = None
+    if save_visualization:
+        draw_matches = sorted(good_matches, key=lambda m: m.distance)[:100]
+        vis = cv2.drawMatches(
+            img1, kp1, img2, kp2, draw_matches, None,
+            flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+        )
 
-    os.makedirs(output_dir, exist_ok=True)
-    pair_name = f"{os.path.splitext(metrics['img1'])[0]}__{os.path.splitext(metrics['img2'])[0]}"
-    vis_path = os.path.join(output_dir, f"match_{pair_name}.png")
-    cv2.imwrite(vis_path, vis)
+        os.makedirs(output_dir, exist_ok=True)
+        pair_name = f"{os.path.splitext(metrics['img1'])[0]}__{os.path.splitext(metrics['img2'])[0]}"
+        vis_path = os.path.join(output_dir, f"match_{pair_name}.png")
+        cv2.imwrite(vis_path, vis)
     metrics["visualization_path"] = vis_path
 
     return metrics
 
 
+FRAME_NAME_RE = re.compile(r"^(?P<video_id>.+)-(?P<frame>\d+)$")
+
+
+def parse_frame_name(filepath):
+    """מפרק שם קובץ לפי הפורמט <video_id>-<frame_number>.jpg (כמו BDD100K sequences)
+    למשל: a91b7555-00001220.jpg -> video_id='a91b7555', frame_number=1220"""
+    base = os.path.splitext(os.path.basename(filepath))[0]
+    m = FRAME_NAME_RE.match(base)
+    if not m:
+        return None, None
+    return m.group("video_id"), int(m.group("frame"))
+
+
 # --------------------------------------------------------------------------
 # איסוף זוגות תמונות מתוך תיקיית ה-Dataset
 # --------------------------------------------------------------------------
-def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive", seed=42):
+def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive",
+                                frame_gap=1, seed=42):
     """
     מחפש תמונות (jpg/png) בתיקייה (כולל תת-תיקיות) ובונה זוגות.
-    mode="consecutive": זוגות של תמונות עוקבות (שימושי לרצפים/וידאו-פריימים ב-BDD100K)
-    mode="random": זוגות אקראיים מתוך כל התמונות שנמצאו
+
+    mode="sequence": (מומלץ!) מפרק כל שם קובץ ל-(video_id, frame_number) לפי
+        הפורמט <video_id>-<frame_number>.jpg (כמו ב-BDD100K: a91b7555-00001220.jpg),
+        מקבץ תמונות לפי video_id, ממיין לפי מספר הפריים בתוך כל וידאו, ובונה זוגות
+        של פריימים אמיתיים מאותו רצף במרחק frame_gap ביניהם (יש חפיפה ויזואלית
+        גדולה בין התמונות - זה מה שמייצר feature matching משמעותי).
+    mode="consecutive": זוגות של תמונות עוקבות לפי סדר אלפביתי בתיקייה (נאיבי,
+        לא בודק שהן באמת מאותו וידאו).
+    mode="random": זוגות אקראיים מתוך כל התמונות שנמצאו (לשם בדיקת "false positive").
     """
     exts = ("*.jpg", "*.jpeg", "*.png")
     all_images = []
@@ -165,10 +194,38 @@ def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive", se
         raise FileNotFoundError(f"נמצאו פחות משתי תמונות בתיקייה: {dataset_dir}")
 
     pairs = []
-    if mode == "consecutive":
+
+    if mode == "sequence":
+        sequences = {}
+        for path in all_images:
+            video_id, frame_num = parse_frame_name(path)
+            if video_id is None:
+                continue
+            sequences.setdefault(video_id, []).append((frame_num, path))
+
+        sequences = {vid: sorted(frames) for vid, frames in sequences.items() if len(frames) >= 2}
+
+        if not sequences:
+            raise ValueError(
+                "לא נמצאו רצפי פריימים תואמים לפורמט '<video_id>-<frame_number>.jpg'. "
+                "בדוק את שמות הקבצים בתיקייה, או השתמש ב-mode='consecutive'/'random'."
+            )
+
+        for vid, frames in sequences.items():
+            for i in range(len(frames) - frame_gap):
+                _, path_a = frames[i]
+                _, path_b = frames[i + frame_gap]
+                pairs.append((path_a, path_b))
+                if len(pairs) >= num_pairs:
+                    return pairs
+
+        print(f"[INFO] נמצאו {len(sequences)} רצפי וידאו שונים, "
+              f"סה\"כ {len(pairs)} זוגות פריימים עוקבים.")
+
+    elif mode == "consecutive":
         for i in range(min(num_pairs, len(all_images) - 1)):
             pairs.append((all_images[i], all_images[i + 1]))
-    else:
+    else:  # random
         random.seed(seed)
         for _ in range(num_pairs):
             a, b = random.sample(all_images, 2)
@@ -203,7 +260,8 @@ def save_csv(results, csv_path):
 # --------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="Feature Matching על תמונות מ-BDD100K")
-    parser.add_argument("--dataset_dir", type=str, default=None,
+    parser.add_argument("--dataset_dir", type=str,
+                         default=r"C:\Users\amit\Downloads\archive\bdd100k\bdd100k\images\10k\val",
                          help="נתיב לתיקיית התמונות של BDD100K")
     parser.add_argument("--img1", type=str, default=None, help="נתיב לתמונה ראשונה (ריצה על זוג בודד)")
     parser.add_argument("--img2", type=str, default=None, help="נתיב לתמונה שנייה (ריצה על זוג בודד)")
@@ -213,8 +271,17 @@ def main():
     parser.add_argument("--n_features", type=int, default=2000)
     parser.add_argument("--ratio_thresh", type=float, default=0.75)
     parser.add_argument("--ransac_thresh", type=float, default=5.0)
-    parser.add_argument("--num_pairs", type=int, default=10, help="כמה זוגות תמונות לעבד מתוך ה-dataset")
-    parser.add_argument("--pair_mode", type=str, default="consecutive", choices=["consecutive", "random"])
+    parser.add_argument("--num_pairs", type=int, default=300,
+                         help="כמה זוגות תמונות לעבד מתוך ה-dataset (ברירת מחדל גבוהה כדי לכסות "
+                              "גם רצפים ארוכים וגם קצרים)")
+    parser.add_argument("--pair_mode", type=str, default="sequence",
+                         choices=["sequence", "consecutive", "random"],
+                         help="'sequence' (מומלץ): זוגות פריימים אמיתיים מאותו וידאו לפי "
+                              "<video_id>-<frame_number>.jpg. 'consecutive': לפי סדר קבצים בתיקייה. "
+                              "'random': זוגות אקראיים.")
+    parser.add_argument("--frame_gap", type=int, default=1,
+                         help="מרחק (בפריימים) בין שתי התמונות בזוג, כשמשתמשים ב-pair_mode='sequence'. "
+                              "לדוגמה gap=5 בין a91b7555-00001220 ל-a91b7555-00001225.")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -225,7 +292,8 @@ def main():
         pairs = [(args.img1, args.img2)]
     # מצב 2: תיקיית dataset שלמה
     elif args.dataset_dir:
-        pairs = collect_pairs_from_dataset(args.dataset_dir, args.num_pairs, args.pair_mode)
+        pairs = collect_pairs_from_dataset(args.dataset_dir, args.num_pairs, args.pair_mode,
+                                            frame_gap=args.frame_gap)
     else:
         raise ValueError("יש לספק either --dataset_dir או (--img1 וגם --img2)")
 

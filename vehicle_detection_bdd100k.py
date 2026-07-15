@@ -57,8 +57,13 @@ def load_model(model_path="yolov8n.pt"):
 # --------------------------------------------------------------------------
 # עיבוד תמונה בודדת
 # --------------------------------------------------------------------------
-def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_dir="./output"):
-    img = cv2.imread(image_path)
+def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_dir="./output",
+                   save_visualization=True, image_override=None):
+    """image_path is used for naming/metrics either way. If image_override
+    (a BGR array) is given, it is detected on instead of re-reading from
+    disk -- lets callers feed an in-memory distorted image without ever
+    writing it to disk."""
+    img = image_override if image_override is not None else cv2.imread(image_path)
     if img is None:
         print(f"[WARN] Could not read: {image_path}")
         return None, []
@@ -71,7 +76,7 @@ def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_d
     names = result.names  # class_id -> class_name
 
     detections = []
-    vis = img.copy()
+    vis = img.copy() if save_visualization else None
 
     for box in result.boxes:
         cls_id = int(box.cls[0])
@@ -94,18 +99,21 @@ def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_d
         })
 
         # ציור Bounding Box + Label
-        color = VEHICLE_CLASSES[cls_name]
-        cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-        label = f"{cls_name} {conf:.2f}"
-        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        cv2.rectangle(vis, (x1, y1 - th - 6), (x1 + tw + 4, y1), color, -1)
-        cv2.putText(vis, label, (x1 + 2, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5, (255, 255, 255), 1, cv2.LINE_AA)
+        if save_visualization:
+            color = VEHICLE_CLASSES[cls_name]
+            cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
+            label = f"{cls_name} {conf:.2f}"
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.rectangle(vis, (x1, y1 - th - 6), (x1 + tw + 4, y1), color, -1)
+            cv2.putText(vis, label, (x1 + 2, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-    os.makedirs(output_dir, exist_ok=True)
-    base_name = os.path.splitext(os.path.basename(image_path))[0]
-    vis_path = os.path.join(output_dir, f"detect_{base_name}.png")
-    cv2.imwrite(vis_path, vis)
+    vis_path = None
+    if save_visualization:
+        os.makedirs(output_dir, exist_ok=True)
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        vis_path = os.path.join(output_dir, f"detect_{base_name}.png")
+        cv2.imwrite(vis_path, vis)
 
     # מטריקות מסכמות לתמונה הזו
     class_counts = {}
