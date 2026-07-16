@@ -16,12 +16,16 @@ fully in-memory, no augmented dataset is ever written to disk.
 3. Plot detection recall / mean IoU vs SNR per distortion, with the clean
    baseline (recall=1.0) as a reference line.
 
-Usage:
-    python run_vehicle_detection_degradation.py \
-        --clean_dir "C:\\Users\\amit\\Desktop\\data1\\3_data_vehicle_detection_deep_learnning" \
-        --out_dir results/task3_vehicle_detection
+Usage (run from inside Amit_project/):
+    python run_vehicle_detection_degradation.py
+    python run_vehicle_detection_degradation.py --clean_dir <custom_path> --out_dir <custom_path>
 """
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import config
 
 import argparse
 import os
@@ -152,9 +156,9 @@ def plot_metric_vs_snr(level_summary, baseline_value, metric, ylabel, out_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Vehicle detection robustness sweep vs SNR (in-memory)")
-    parser.add_argument("--clean_dir", required=True)
-    parser.add_argument("--out_dir", required=True)
-    parser.add_argument("--model", default="yolov8n.pt")
+    parser.add_argument("--clean_dir", default=str(config.TASK3_CLEAN_DIR))
+    parser.add_argument("--out_dir", default=str(config.TASK3_RESULTS_DIR))
+    parser.add_argument("--model", default=str(config.YOLO_WEIGHTS_PATH))
     parser.add_argument("--conf", type=float, default=0.25)
     parser.add_argument("--iou", type=float, default=0.45, help="NMS IoU threshold used by the detector")
     parser.add_argument("--match_iou_thresh", type=float, default=0.5, help="IoU threshold for matching a detection to a baseline box")

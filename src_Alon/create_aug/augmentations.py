@@ -243,7 +243,7 @@ def display_augmentation_grid(image):
 
 
 def main():
-    image_path = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\1_data_lane_detection_low_level\0a0a0b1a-7c39d841.jpg"
+    image_path = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\clean_images\1_data_lane_detection_low_level\0a0a0b1a-7c39d841.jpg"
     image = cv2.imread(image_path)
 
     if image is None:

@@ -14,12 +14,16 @@ fully in-memory, no augmented dataset is ever written to disk.
 3. Plot match-accuracy (inlier_ratio, match_ratio) vs SNR per distortion,
    with the clean baseline as a reference line.
 
-Usage:
-    python run_feature_matching_degradation.py \
-        --clean_dir "C:\\Users\\amit\\Desktop\\data1\\2_data_feature_matching_high_level" \
-        --out_dir results/task2_feature_matching
+Usage (run from inside Amit_project/):
+    python run_feature_matching_degradation.py
+    python run_feature_matching_degradation.py --clean_dir <custom_path> --out_dir <custom_path>
 """
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import config
 
 import argparse
 import os
@@ -102,8 +106,8 @@ def plot_metric_vs_snr(level_summary, baseline_value, metric, ylabel, out_path):
 
 def main():
     parser = argparse.ArgumentParser(description="Feature matching robustness sweep vs SNR (in-memory)")
-    parser.add_argument("--clean_dir", required=True)
-    parser.add_argument("--out_dir", required=True)
+    parser.add_argument("--clean_dir", default=str(config.TASK2_CLEAN_DIR))
+    parser.add_argument("--out_dir", default=str(config.TASK2_RESULTS_DIR))
     parser.add_argument("--method", default="orb", choices=["orb", "sift", "akaze"])
     parser.add_argument("--n_features", type=int, default=2000)
     parser.add_argument("--ratio_thresh", type=float, default=0.75)

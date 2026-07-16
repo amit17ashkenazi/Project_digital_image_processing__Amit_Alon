@@ -4,6 +4,11 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import config
+
 # Shared between apply_roi() and merge_lines() so the ROI shape and the
 # lane-line projection always agree on where the "top of the road" is.
 ROI_TOP_RATIO = 0.6
@@ -323,8 +328,13 @@ def process_image(image_path, show=True):
 
 
 def main():
-    image_path = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\2_data_feature_matching_high_level\00e9be89-00001050.jpg"
-    process_image(image_path, show=True)
+    # Pick the first image in the clean folder as a quick test case,
+    # instead of a hardcoded path that breaks when folders move
+    sample_images = sorted(config.TASK1_CLEAN_DIR.glob("*.jpg"))
+    if not sample_images:
+        print(f"No images found in {config.TASK1_CLEAN_DIR}")
+        return
+    process_image(str(sample_images[0]), show=True)
 
 
 if __name__ == "__main__":

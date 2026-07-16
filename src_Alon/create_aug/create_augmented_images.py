@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import config
+
 import os
 import csv
 import cv2
@@ -6,13 +11,14 @@ import numpy as np
 from augmentations import apply_motion_blur, apply_low_light, apply_rain
 
 # =========================
-# PATHS
+# PATHS (now from config)
 # =========================
-input_folder = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\1_data_lane_detection_low_level"
-output_root = "augmented_images"
-snr_log_csv = "achieved_snr_log.csv"
+input_folder = config.TASK1_CLEAN_DIR
+output_root = config.AUGMENTED_ROOT
+snr_log_csv = config.SNR_LOG_CSV
 
-NUM_LEVELS = 9
+NUM_LEVELS = config.NUM_LEVELS
+
 
 # =========================
 # SNR calculation (exact MSE-based formula)

@@ -1,30 +1,35 @@
 """
-Vehicle Detection על תמונות מ-BDD100K באמצעות YOLOv8
-======================================================
+Vehicle Detection on BDD100K Images using YOLOv8
+================================================
 
-מה הסקריפט עושה:
-1. טוען תמונות (מתיקיית dataset או קבצים ספציפיים)
-2. מריץ מודל YOLOv8 (pretrained על COCO) לזיהוי רכבים
-3. מסנן רק את הקטגוריות הרלוונטיות לרכבים:
+This script performs:
+1. Loads images (either from a dataset directory or specific image files)
+2. Runs a YOLOv8 model (pretrained on the COCO dataset) for vehicle detection
+3. Filters only vehicle-related classes:
    car, truck, bus, motorcycle, bicycle
-4. שומר:
-   - תמונה ויזואלית עם Bounding Boxes מצוירים + label + confidence
-   - מטריקות מספריות (מס' רכבים, פילוח לפי סוג, confidence ממוצע, זמן ריצה)
-   - קובץ CSV מצטבר עם כל הזיהויים (bbox, class, confidence) לכל תמונה
+4. Saves:
+   - A visualization image with bounding boxes, class labels, and confidence scores
+   - Numerical metrics (number of detected vehicles, class distribution, average confidence, and inference time)
+   - A cumulative CSV file containing all detections (bounding box, class, and confidence) for each processed image
 
-התקנה (חד פעמי):
+Installation (one-time):
     pip install ultralytics
 
-איך מריצים:
+Usage:
     python vehicle_detection_bdd100k.py --dataset_dir /path/to/bdd100k/images \
-                                          --output_dir ./output \
-                                          --num_images 20 \
-                                          --model yolov8n.pt \
-                                          --conf 0.25
+                                        --output_dir ./output \
+                                        --num_images 20 \
+                                        --model yolov8n.pt \
+                                        --conf 0.25
 
-או על תמונות ספציפיות:
+Or on specific images:
     python vehicle_detection_bdd100k.py --images img1.jpg img2.jpg --output_dir ./output
 """
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import config
 
 import os
 import cv2
@@ -37,25 +42,25 @@ from ultralytics import YOLO
 
 
 # --------------------------------------------------------------------------
-# מיפוי קטגוריות רכבים מתוך COCO (המודל המקורי מזהה 80 קטגוריות)
+# Vehicle class mapping from COCO (the base model detects 80 categories)
 # --------------------------------------------------------------------------
 VEHICLE_CLASSES = {
-    "car": (0, 165, 255),        # כתום
-    "truck": (0, 0, 255),        # אדום
-    "bus": (255, 0, 0),          # כחול
-    "motorcycle": (0, 255, 255), # צהוב
-    "bicycle": (0, 255, 0),      # ירוק
+    "car": (0, 165, 255),        # orange
+    "truck": (0, 0, 255),        # red
+    "bus": (255, 0, 0),          # blue
+    "motorcycle": (0, 255, 255), # yellow
+    "bicycle": (0, 255, 0),      # green
 }
 
 
 def load_model(model_path="yolov8n.pt"):
-    print(f"[INFO] טוען מודל: {model_path} ...")
+    print(f"[INFO] Loading model: {model_path} ...")
     model = YOLO(model_path)
     return model
 
 
 # --------------------------------------------------------------------------
-# עיבוד תמונה בודדת
+# Process a single image
 # --------------------------------------------------------------------------
 def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_dir="./output",
                    save_visualization=True, image_override=None):
@@ -98,7 +103,7 @@ def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_d
             "box_area": w * h,
         })
 
-        # ציור Bounding Box + Label
+        # Draw bounding box + label
         if save_visualization:
             color = VEHICLE_CLASSES[cls_name]
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
@@ -115,7 +120,7 @@ def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_d
         vis_path = os.path.join(output_dir, f"detect_{base_name}.png")
         cv2.imwrite(vis_path, vis)
 
-    # מטריקות מסכמות לתמונה הזו
+    # Summary metrics for this image
     class_counts = {}
     for d in detections:
         class_counts[d["class"]] = class_counts.get(d["class"], 0) + 1
@@ -136,16 +141,16 @@ def process_image(model, image_path, conf_thresh=0.25, iou_thresh=0.45, output_d
         "visualization_path": vis_path,
     }
 
-    print(f"  [{summary['image']}] נמצאו {summary['total_vehicles']} רכבים "
+    print(f"  [{summary['image']}] found {summary['total_vehicles']} vehicles "
           f"(cars={summary['n_cars']}, trucks={summary['n_trucks']}, "
           f"buses={summary['n_buses']}, motorcycles={summary['n_motorcycles']}, "
-          f"bicycles={summary['n_bicycles']}) | זמן={summary['inference_time_sec']}s")
+          f"bicycles={summary['n_bicycles']}) | time={summary['inference_time_sec']}s")
 
     return summary, detections
 
 
 # --------------------------------------------------------------------------
-# איסוף תמונות מתוך תיקיית dataset
+# Collect images from a dataset directory
 # --------------------------------------------------------------------------
 def collect_images_from_dataset(dataset_dir, num_images=20):
     exts = ("*.jpg", "*.jpeg", "*.png")
@@ -155,17 +160,17 @@ def collect_images_from_dataset(dataset_dir, num_images=20):
     all_images = sorted(all_images)
 
     if not all_images:
-        raise FileNotFoundError(f"לא נמצאו תמונות בתיקייה: {dataset_dir}")
+        raise FileNotFoundError(f"No images found in directory: {dataset_dir}")
 
     return all_images[:num_images]
 
 
 # --------------------------------------------------------------------------
-# שמירת CSV מצטבר
+# Save cumulative CSV
 # --------------------------------------------------------------------------
 def save_csv(rows, csv_path, fieldnames):
     if not rows:
-        print(f"[WARN] אין נתונים לשמירה עבור {csv_path}")
+        print(f"[WARN] No data to save for {csv_path}")
         return
     file_exists = os.path.exists(csv_path)
     with open(csv_path, mode="a" if file_exists else "w", newline="", encoding="utf-8") as f:
@@ -174,24 +179,25 @@ def save_csv(rows, csv_path, fieldnames):
             writer.writeheader()
         for row in rows:
             writer.writerow(row)
-    print(f"[OK] נשמרו {len(rows)} שורות לקובץ: {csv_path}")
+    print(f"[OK] Saved {len(rows)} rows to: {csv_path}")
 
 
 # --------------------------------------------------------------------------
 # MAIN
 # --------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Vehicle Detection על תמונות מ-BDD100K עם YOLOv8")
-    parser.add_argument("--dataset_dir", type=str, default=None, help="נתיב לתיקיית תמונות BDD100K")
-    parser.add_argument("--images", type=str, nargs="+", default=None, help="רשימת נתיבי תמונות ספציפיים")
-    parser.add_argument("--output_dir", type=str, default="./output", help="תיקיית פלט")
+    parser = argparse.ArgumentParser(description="Vehicle Detection on BDD100K images with YOLOv8")
+    parser.add_argument("--dataset_dir", type=str, default=str(config.TASK3_CLEAN_DIR),
+                         help="Path to the BDD100K image directory")
+    parser.add_argument("--images", type=str, nargs="+", default=None, help="List of specific image paths")
+    parser.add_argument("--output_dir", type=str, default="./output", help="Output directory")
     parser.add_argument("--summary_csv_name", type=str, default="vehicle_detection_summary.csv")
     parser.add_argument("--detections_csv_name", type=str, default="vehicle_detection_details.csv")
-    parser.add_argument("--model", type=str, default="yolov8n.pt",
-                         help="משקלות מודל: yolov8n.pt (מהיר) / yolov8s.pt / yolov8m.pt (מדויק יותר)")
-    parser.add_argument("--conf", type=float, default=0.25, help="סף confidence לזיהוי")
-    parser.add_argument("--iou", type=float, default=0.45, help="סף IoU ל-NMS")
-    parser.add_argument("--num_images", type=int, default=20, help="כמה תמונות לעבד מתוך ה-dataset")
+    parser.add_argument("--model", type=str, default=str(config.YOLO_WEIGHTS_PATH),
+                         help="Model weights: yolov8n.pt (fast) / yolov8s.pt / yolov8m.pt (more accurate)")
+    parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold for detection")
+    parser.add_argument("--iou", type=float, default=0.45, help="IoU threshold for NMS")
+    parser.add_argument("--num_images", type=int, default=20, help="How many images to process from the dataset")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -203,14 +209,14 @@ def main():
     elif args.dataset_dir:
         image_paths = collect_images_from_dataset(args.dataset_dir, args.num_images)
     else:
-        raise ValueError("יש לספק either --dataset_dir או --images")
+        raise ValueError("You must provide either --dataset_dir or --images")
 
     model = load_model(args.model)
 
     all_summaries = []
     all_detections = []
 
-    print(f"\n[INFO] מעבד {len(image_paths)} תמונות...\n")
+    print(f"\n[INFO] Processing {len(image_paths)} images...\n")
     for img_path in image_paths:
         summary, detections = process_image(
             model, img_path,
@@ -222,7 +228,7 @@ def main():
             all_summaries.append(summary)
             all_detections.extend(detections)
 
-    # שמירת שני קבצי CSV: סיכום לכל תמונה + פירוט לכל זיהוי בודד
+    # Save two CSV files: per-image summary + per-detection detail
     summary_fields = ["image", "total_vehicles", "n_cars", "n_trucks", "n_buses",
                        "n_motorcycles", "n_bicycles", "avg_confidence", "min_confidence",
                        "max_confidence", "inference_time_sec", "visualization_path"]
@@ -232,14 +238,14 @@ def main():
     save_csv(all_summaries, summary_csv_path, summary_fields)
     save_csv(all_detections, details_csv_path, details_fields)
 
-    # מטריקות כלליות על כל הסט
+    # Overall summary metrics across the full set
     if all_summaries:
         total_vehicles = sum(s["total_vehicles"] for s in all_summaries)
         avg_per_image = total_vehicles / len(all_summaries)
-        print(f"\n=== סיכום כללי ===")
-        print(f"סה\"כ תמונות שעובדו: {len(all_summaries)}")
-        print(f"סה\"כ רכבים שזוהו: {total_vehicles}")
-        print(f"ממוצע רכבים לתמונה: {avg_per_image:.2f}")
+        print(f"\n=== Overall Summary ===")
+        print(f"Total images processed: {len(all_summaries)}")
+        print(f"Total vehicles detected: {total_vehicles}")
+        print(f"Average vehicles per image: {avg_per_image:.2f}")
 
 
 if __name__ == "__main__":

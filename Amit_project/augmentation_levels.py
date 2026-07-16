@@ -5,7 +5,7 @@ computes achieved SNR (dB) in-memory (no files written).
 """
 import numpy as np
 
-from augmentations import apply_motion_blur, apply_low_light, apply_rain
+from augmentations_AMIT import apply_motion_blur, apply_low_light, apply_rain
 
 AUGMENTATIONS = ["motion_blur", "low_light", "rain"]
 

@@ -1,26 +1,31 @@
 """
-Feature Matching על תמונות מ-BDD100K
-=====================================
+Feature Matching on BDD100K Images
+==================================
 
-מה הסקריפט עושה:
-1. טוען זוגות תמונות (מתוך תיקיית ה-dataset או שני קבצים ספציפיים)
-2. מחלץ Features (ברירת מחדל: ORB, אופציה: SIFT)
-3. מבצע Matching בין ה-Descriptors (BFMatcher + Ratio Test של Lowe)
-4. מסנן Inliers באמצעות RANSAC + Homography
-5. שומר:
-   - תמונת ויזואליזציה (PNG) של ההתאמות עבור כל זוג
-   - מטריקות מספריות מודפסות למסך
-   - קובץ CSV מצטבר עם התוצאות לכל הזוגות שעובדו
+This script performs:
+1. Loads image pairs (either from a dataset directory or two specific image files)
+2. Extracts image features (default: ORB, optional: SIFT)
+3. Matches feature descriptors (BFMatcher + Lowe's Ratio Test)
+4. Filters inlier matches using RANSAC + Homography
+5. Saves:
+   - A visualization image (PNG) showing the feature matches for each image pair
+   - Numerical metrics printed to the console
+   - A cumulative CSV file containing the results for all processed image pairs
 
-איך מריצים:
+Usage:
     python feature_matching_bdd100k.py --dataset_dir /path/to/bdd100k/images \
-                                        --output_dir ./output \
-                                        --num_pairs 10 \
-                                        --method orb
+                                       --output_dir ./output \
+                                       --num_pairs 10 \
+                                       --method orb
 
-או על שני קבצים ספציפיים:
+Or on two specific images:
     python feature_matching_bdd100k.py --img1 /path/a.jpg --img2 /path/b.jpg --output_dir ./output
 """
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import config
 
 import os
 import re
@@ -34,7 +39,7 @@ import numpy as np
 
 
 # --------------------------------------------------------------------------
-# חילוץ Features
+# Feature extraction
 # --------------------------------------------------------------------------
 def get_detector(method="orb", n_features=2000):
     method = method.lower()
@@ -59,7 +64,7 @@ def get_matcher(method="orb"):
 
 
 # --------------------------------------------------------------------------
-# עיבוד זוג תמונות
+# Process a single image pair
 # --------------------------------------------------------------------------
 def process_pair(img1_path, img2_path, method="orb", n_features=2000,
                   ratio_thresh=0.75, ransac_thresh=5.0, output_dir="./output",
@@ -106,7 +111,7 @@ def process_pair(img1_path, img2_path, method="orb", n_features=2000,
 
     n_good_matches = len(good_matches)
 
-    # RANSAC + Homography -> ספירת Inliers
+    # RANSAC + Homography -> count inliers
     n_inliers = 0
     inlier_ratio = 0.0
     if n_good_matches >= 4:
@@ -117,7 +122,7 @@ def process_pair(img1_path, img2_path, method="orb", n_features=2000,
             n_inliers = int(mask.sum())
             inlier_ratio = n_inliers / n_good_matches
 
-    # מטריקות
+    # Metrics
     match_ratio = n_good_matches / min(n_kp1, n_kp2) if min(n_kp1, n_kp2) > 0 else 0.0
     avg_distance = float(np.mean([m.distance for m in good_matches])) if good_matches else 0.0
 
@@ -136,7 +141,7 @@ def process_pair(img1_path, img2_path, method="orb", n_features=2000,
         "match_time_sec": round(match_time, 4),
     }
 
-    # ויזואליזציה - נציג רק את ה-Good Matches (או עד 100 מהם לצורך בהירות)
+    # Visualization -- only draw the good matches (up to 100 for clarity)
     vis_path = None
     if save_visualization:
         draw_matches = sorted(good_matches, key=lambda m: m.distance)[:100]
@@ -158,8 +163,9 @@ FRAME_NAME_RE = re.compile(r"^(?P<video_id>.+)-(?P<frame>\d+)$")
 
 
 def parse_frame_name(filepath):
-    """מפרק שם קובץ לפי הפורמט <video_id>-<frame_number>.jpg (כמו BDD100K sequences)
-    למשל: a91b7555-00001220.jpg -> video_id='a91b7555', frame_number=1220"""
+    """Parses a filename in the format <video_id>-<frame_number>.jpg (as used
+    by BDD100K sequences). Example: a91b7555-00001220.jpg -> video_id='a91b7555',
+    frame_number=1220"""
     base = os.path.splitext(os.path.basename(filepath))[0]
     m = FRAME_NAME_RE.match(base)
     if not m:
@@ -168,21 +174,24 @@ def parse_frame_name(filepath):
 
 
 # --------------------------------------------------------------------------
-# איסוף זוגות תמונות מתוך תיקיית ה-Dataset
+# Collect image pairs from a dataset directory
 # --------------------------------------------------------------------------
 def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive",
                                 frame_gap=1, seed=42):
     """
-    מחפש תמונות (jpg/png) בתיקייה (כולל תת-תיקיות) ובונה זוגות.
+    Searches for images (jpg/png) in the directory (including subfolders) and
+    builds pairs.
 
-    mode="sequence": (מומלץ!) מפרק כל שם קובץ ל-(video_id, frame_number) לפי
-        הפורמט <video_id>-<frame_number>.jpg (כמו ב-BDD100K: a91b7555-00001220.jpg),
-        מקבץ תמונות לפי video_id, ממיין לפי מספר הפריים בתוך כל וידאו, ובונה זוגות
-        של פריימים אמיתיים מאותו רצף במרחק frame_gap ביניהם (יש חפיפה ויזואלית
-        גדולה בין התמונות - זה מה שמייצר feature matching משמעותי).
-    mode="consecutive": זוגות של תמונות עוקבות לפי סדר אלפביתי בתיקייה (נאיבי,
-        לא בודק שהן באמת מאותו וידאו).
-    mode="random": זוגות אקראיים מתוך כל התמונות שנמצאו (לשם בדיקת "false positive").
+    mode="sequence": (recommended!) Parses each filename into
+        (video_id, frame_number) using the format <video_id>-<frame_number>.jpg
+        (as in BDD100K: a91b7555-00001220.jpg), groups images by video_id, sorts
+        by frame number within each video, and builds pairs of real consecutive
+        frames from the same sequence, frame_gap apart (there's significant
+        visual overlap between them -- that's what produces meaningful feature
+        matching).
+    mode="consecutive": Pairs of images consecutive in alphabetical order within
+        the folder (naive -- doesn't check they're actually from the same video).
+    mode="random": Random pairs from all images found (for "false positive" testing).
     """
     exts = ("*.jpg", "*.jpeg", "*.png")
     all_images = []
@@ -191,7 +200,7 @@ def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive",
     all_images = sorted(all_images)
 
     if len(all_images) < 2:
-        raise FileNotFoundError(f"נמצאו פחות משתי תמונות בתיקייה: {dataset_dir}")
+        raise FileNotFoundError(f"Fewer than two images found in directory: {dataset_dir}")
 
     pairs = []
 
@@ -207,8 +216,9 @@ def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive",
 
         if not sequences:
             raise ValueError(
-                "לא נמצאו רצפי פריימים תואמים לפורמט '<video_id>-<frame_number>.jpg'. "
-                "בדוק את שמות הקבצים בתיקייה, או השתמש ב-mode='consecutive'/'random'."
+                "No frame sequences matching the format '<video_id>-<frame_number>.jpg' "
+                "were found. Check the filenames in the directory, or use "
+                "mode='consecutive'/'random'."
             )
 
         for vid, frames in sequences.items():
@@ -219,8 +229,8 @@ def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive",
                 if len(pairs) >= num_pairs:
                     return pairs
 
-        print(f"[INFO] נמצאו {len(sequences)} רצפי וידאו שונים, "
-              f"סה\"כ {len(pairs)} זוגות פריימים עוקבים.")
+        print(f"[INFO] Found {len(sequences)} distinct video sequences, "
+              f"{len(pairs)} consecutive frame pairs total.")
 
     elif mode == "consecutive":
         for i in range(min(num_pairs, len(all_images) - 1)):
@@ -235,7 +245,7 @@ def collect_pairs_from_dataset(dataset_dir, num_pairs=10, mode="consecutive",
 
 
 # --------------------------------------------------------------------------
-# שמירת CSV מצטבר
+# Save cumulative CSV
 # --------------------------------------------------------------------------
 def save_csv(results, csv_path):
     if not results:
@@ -252,54 +262,55 @@ def save_csv(results, csv_path):
         for row in results:
             writer.writerow(row)
 
-    print(f"[OK] נשמרו {len(results)} שורות לקובץ: {csv_path}")
+    print(f"[OK] Saved {len(results)} rows to: {csv_path}")
 
 
 # --------------------------------------------------------------------------
 # MAIN
 # --------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Feature Matching על תמונות מ-BDD100K")
+    parser = argparse.ArgumentParser(description="Feature Matching on BDD100K images")
     parser.add_argument("--dataset_dir", type=str,
-                         default=r"C:\Users\amit\Downloads\archive\bdd100k\bdd100k\images\10k\val",
-                         help="נתיב לתיקיית התמונות של BDD100K")
-    parser.add_argument("--img1", type=str, default=None, help="נתיב לתמונה ראשונה (ריצה על זוג בודד)")
-    parser.add_argument("--img2", type=str, default=None, help="נתיב לתמונה שנייה (ריצה על זוג בודד)")
-    parser.add_argument("--output_dir", type=str, default="./output", help="תיקיית פלט")
+                         default=str(config.TASK2_CLEAN_DIR),
+                         help="Path to the BDD100K image directory")
+    parser.add_argument("--img1", type=str, default=None, help="Path to first image (single-pair run)")
+    parser.add_argument("--img2", type=str, default=None, help="Path to second image (single-pair run)")
+    parser.add_argument("--output_dir", type=str, default="./output", help="Output directory")
     parser.add_argument("--csv_name", type=str, default="feature_matching_results.csv")
     parser.add_argument("--method", type=str, default="orb", choices=["orb", "sift", "akaze"])
     parser.add_argument("--n_features", type=int, default=2000)
     parser.add_argument("--ratio_thresh", type=float, default=0.75)
     parser.add_argument("--ransac_thresh", type=float, default=5.0)
     parser.add_argument("--num_pairs", type=int, default=300,
-                         help="כמה זוגות תמונות לעבד מתוך ה-dataset (ברירת מחדל גבוהה כדי לכסות "
-                              "גם רצפים ארוכים וגם קצרים)")
+                         help="How many image pairs to process from the dataset (high default "
+                              "to cover both long and short sequences)")
     parser.add_argument("--pair_mode", type=str, default="sequence",
                          choices=["sequence", "consecutive", "random"],
-                         help="'sequence' (מומלץ): זוגות פריימים אמיתיים מאותו וידאו לפי "
-                              "<video_id>-<frame_number>.jpg. 'consecutive': לפי סדר קבצים בתיקייה. "
-                              "'random': זוגות אקראיים.")
+                         help="'sequence' (recommended): real consecutive frame pairs from the "
+                              "same video, per <video_id>-<frame_number>.jpg. 'consecutive': by "
+                              "file order in the folder. 'random': random pairs.")
     parser.add_argument("--frame_gap", type=int, default=1,
-                         help="מרחק (בפריימים) בין שתי התמונות בזוג, כשמשתמשים ב-pair_mode='sequence'. "
-                              "לדוגמה gap=5 בין a91b7555-00001220 ל-a91b7555-00001225.")
+                         help="Distance (in frames) between the two images in a pair, when using "
+                              "pair_mode='sequence'. E.g. gap=5 between a91b7555-00001220 and "
+                              "a91b7555-00001225.")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
     csv_path = os.path.join(args.output_dir, args.csv_name)
 
-    # מצב 1: זוג תמונות בודד
+    # Mode 1: single image pair
     if args.img1 and args.img2:
         pairs = [(args.img1, args.img2)]
-    # מצב 2: תיקיית dataset שלמה
+    # Mode 2: full dataset directory
     elif args.dataset_dir:
         pairs = collect_pairs_from_dataset(args.dataset_dir, args.num_pairs, args.pair_mode,
                                             frame_gap=args.frame_gap)
     else:
-        raise ValueError("יש לספק either --dataset_dir או (--img1 וגם --img2)")
+        raise ValueError("You must provide either --dataset_dir or (--img1 and --img2)")
 
     all_results = []
     for img1_path, img2_path in pairs:
-        print(f"\n[INFO] מעבד זוג: {os.path.basename(img1_path)} <-> {os.path.basename(img2_path)}")
+        print(f"\n[INFO] Processing pair: {os.path.basename(img1_path)} <-> {os.path.basename(img2_path)}")
         metrics = process_pair(
             img1_path, img2_path,
             method=args.method,

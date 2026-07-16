@@ -1,21 +1,28 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import config
+
+# lane_detection_pipeline.py lives in a sibling folder, so add it too
+sys.path.insert(0, str(config.PROJECT_ROOT / "src_Alon" / "lane_detection"))
+
 import os
 import csv
-import cv2
 import numpy as np
 
 from lane_detection_pipeline import process_image
 
 # =========================
-# PATHS
+# PATHS (now from config)
 # =========================
-clean_folder = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\1_data_lane_detection_low_level"
-augmented_root = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\augmented_images\task_1_lane_detection"
-snr_log_csv = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\Metrics_Comparison\achieved_snr_log.csv"
-output_csv = "lane_comparison_results.csv"
+clean_folder = config.TASK1_CLEAN_DIR
+augmented_root = config.AUGMENTED_ROOT
+snr_log_csv = config.SNR_LOG_CSV
+output_csv = config.LANE_COMPARISON_CSV
 
+AUGMENTATIONS = config.AUGMENTATIONS
+NUM_LEVELS = config.NUM_LEVELS
 
-AUGMENTATIONS = ["motion_blur", "low_light", "rain"]
-NUM_LEVELS = 9
 
 def line_diff(line_a, line_b):
     if line_a is None or line_b is None:

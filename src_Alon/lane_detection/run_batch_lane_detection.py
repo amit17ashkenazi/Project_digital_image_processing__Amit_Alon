@@ -3,10 +3,15 @@ import glob
 
 from lane_detection_pipeline import process_image
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import config
+
 
 def main():
-    folder_path = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\1_data_lane_detection_low_level"
-    num_images = 300
+    folder_path = config.TASK1_CLEAN_DIR
+    num_images = 2
 
     # Grab image files from the folder (add/remove extensions as needed)
     extensions = ("*.jpg", "*.jpeg", "*.png")

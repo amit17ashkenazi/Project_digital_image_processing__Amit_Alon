@@ -1,16 +1,20 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import config
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-INPUT_CSV = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\Metrics_Comparison\lane_comparison_results.csv"
-MAX_ERROR = 45  # px
-FIXED_LEVEL = 5  # pick one of the 9 levels for the bar chart
+INPUT_CSV = config.LANE_COMPARISON_CSV
+MAX_ERROR = config.MAX_ERROR_PX
+FIXED_LEVEL = 5
 
-AUGMENTATIONS = ["motion_blur", "low_light", "rain"]
-NUM_LEVELS = 9
+AUGMENTATIONS = config.AUGMENTATIONS
+NUM_LEVELS = config.NUM_LEVELS
 
 df = pd.read_csv(INPUT_CSV)
-
 
 def survival_rate(sub, max_error):
     total = 0
@@ -52,7 +56,7 @@ ax1.set_ylabel("Qualitative Survival Rate")
 ax1.set_title(f"Survival Rate by Augmentation (Level {FIXED_LEVEL})")
 ax1.legend()
 plt.tight_layout()
-plt.savefig("survival_rate_bar_chart.png", dpi=150)
+plt.savefig(config.GRAPH_OUTPUT_DIR / "survival_rate_bar_chart.png", dpi=150)
 plt.show()
 
 # =========================
@@ -82,5 +86,5 @@ for aug in AUGMENTATIONS:
     ax.invert_xaxis()  # ensure high SNR (clean) on the left, low SNR (noisy) on the right
     ax.legend()
     plt.tight_layout()
-    plt.savefig(f"survival_rate_vs_snr_{aug}.png", dpi=150)
+    plt.savefig(config.GRAPH_OUTPUT_DIR / f"survival_rate_vs_snr_{aug}.png", dpi=150)
     plt.show()
