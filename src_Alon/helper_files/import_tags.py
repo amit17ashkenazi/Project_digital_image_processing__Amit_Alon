@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import config
+
 import os
 import json
 import shutil
@@ -6,24 +11,23 @@ import zipfile
 import ijson
 
 # ============================================================
-# PATHS - UPDATE THESE
+# PATHS (from config.py -- do not hardcode machine-specific paths here)
 # ============================================================
 
-# Folder containing ONLY the selected 150 images
-SELECTED_IMAGES = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\3_data_vehicle_detection_deep_learnning"
+# Folder containing ONLY the selected images for this task
+SELECTED_IMAGES = str(config.TASK3_CLEAN_DIR)
 
 # Path to the big zip file containing the BDD100K annotations
-ZIP_PATH = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\bdd100k.zip"          # <-- UPDATE: path to your zip file
+ZIP_PATH = str(config.BDD100K_ZIP_PATH)
 
 # Where to extract just the needed JSON file to
-EXTRACT_TO = r"C:\Users\alonk\GitHub\Project_digital_image_processing__Amit_Alon\data\annotations_extracted"
+EXTRACT_TO = str(config.BDD100K_EXTRACT_DIR)
 
 # The exact name/path of the JSON file INSIDE the zip
-# (run the "list zip contents" snippet below first to find this exact string)
-ZIP_INTERNAL_JSON_NAME = r"bdd100k_labels_images_train.json"   # <-- UPDATE: exact entry name inside the zip
+ZIP_INTERNAL_JSON_NAME = config.BDD100K_LABELS_JSON_NAME
 
 # Output dataset
-OUTPUT = r"BDD150"
+OUTPUT = str(config.PROJECT_ROOT / "data" / "BDD150")
 
 # Train / Val / Test split
 TRAIN_RATIO = 0.70

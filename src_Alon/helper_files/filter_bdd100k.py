@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import config
+
+# lane_detection_pipeline.py lives in a sibling folder, so add it too
+sys.path.insert(0, str(config.PROJECT_ROOT / "src_Alon" / "lane_detection"))
+
 import zipfile
 import json
 import os
@@ -6,16 +14,14 @@ import tempfile
 
 import numpy as np
 
-# Save your lane-detection code from the previous message as lane_detection_pipeline.py
-# in this same folder, so this import works.
 from lane_detection_pipeline import process_image, ROI_TOP_RATIO
 
 # =========================
-# PATHS
+# PATHS (from config.py -- do not hardcode machine-specific paths here)
 # =========================
-zip_path = "data/bdd100k.zip"
-output_folder = "matched_images"
-json_name = "bdd100k_labels_images_train.json"
+zip_path = str(config.BDD100K_ZIP_PATH)
+output_folder = str(config.PROJECT_ROOT / "data" / "matched_images")
+json_name = config.BDD100K_LABELS_JSON_NAME
 
 MATCH_TOLERANCE_PX = 45   # how close (pixels) your detected line must be to the GT line
 MAX_IMAGES = 300

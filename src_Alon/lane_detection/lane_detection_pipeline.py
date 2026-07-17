@@ -97,7 +97,9 @@ def filter_lines(lines, image_width):
     mid_x = image_width / 2
 
     for line in lines:
-        x1, y1, x2, y2 = line[0]
+        # cv2.HoughLinesP's return shape is (N,1,4) on some OpenCV builds and
+        # (N,4) on others -- ravel() handles either without caring which.
+        x1, y1, x2, y2 = np.ravel(line)
 
         if x2 - x1 == 0:
             continue
@@ -229,16 +231,21 @@ def display_results(original, gray, blurred, edges, roi, morph, lane_img=None):
     plt.show()
 
 
-def process_image(image_path, show=True):
+def process_image(image_path, show=True, image_override=None):
     """
     Runs the full lane-detection pipeline on a single image.
 
     Parameters
     ----------
     image_path : str
-        Path to the input image.
+        Path to the input image. Used for naming/logging either way.
     show : bool
         If True, displays the step-by-step matplotlib figure for this image.
+    image_override : np.ndarray, optional
+        A BGR array (e.g. a distorted/enhanced in-memory frame) to process
+        instead of re-reading image_path from disk -- lets callers feed a
+        degraded frame without ever writing it to disk, same convention as
+        feature_matching_bdd100k.process_pair / vehicle_detection_bdd100k.process_image.
 
     Returns
     -------
@@ -247,7 +254,7 @@ def process_image(image_path, show=True):
         'left_count', 'right_count'
         or None if the image could not be read.
     """
-    image = cv2.imread(image_path)
+    image = image_override if image_override is not None else cv2.imread(image_path)
 
     if image is None:
         print(f"Error: image not found -> {image_path}")
