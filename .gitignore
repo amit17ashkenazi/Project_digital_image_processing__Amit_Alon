@@ -8,6 +8,7 @@
 # anything.
 !outputs/**/*.png
 !docs/readme_assets/**/*.png
+!docs/readme_assets/**/*.jpg
 
 # Ignore archive and compressed files
 *.zip
