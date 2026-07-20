@@ -1623,3 +1623,248 @@ script names (`build_distortion_grids.py`, `make_smoke_test_sample.py`).
 **Verification:** re-ran the same image-existence check as Phase 6's
 quick-check — all 37 embedded images in the new README resolve to existing
 files on disk.
+
+---
+
+## Addendum — README v2 (2026-07-17, new template-driven structure)
+
+The user provided a new README skeleton (`README2.md` on their Desktop, a
+placeholder-driven template: `ADD TEXT`/`ADD IMAGE`/`ADD GRAPH`/`ADD TABLE`
+markers) along with an exact target folder structure for
+`docs/readme_assets/` (dataset/baseline/distortions/distortion_results/
+enhancements/finetuning subfolders). This fully replaces the previous
+README structure from the earlier "README rework" addendum above.
+
+**Discovered before starting:** the user's initial message claimed "we
+updated the README to a new structure," but `README.md` on disk (and on
+`origin/Alon_branch`, confirmed via `git fetch` + diff) was unchanged from
+the previous session's version — surfaced this discrepancy rather than
+guessing, which led to the user sharing the actual template file.
+
+**Step 1 — `tools/build_readme_assets.py`:** a single script that populates
+the exact requested `docs/readme_assets/` structure purely from existing
+outputs (CSVs, plots, visualization PNGs, raw dataset images) — no
+pipeline/detector/matcher re-run. Two kinds of new composites were built
+(from existing artifacts only, never recomputed metrics):
+- 3×3 grids per task (`distortion_results/task{n}/grid_by_distortion_and_
+  severity.png`): rows = distortion, columns = severity (levels 2/5/8),
+  each cell = an existing method-overlay visualization PNG.
+- Before/after pairs per task/distortion (`enhancements/task{n}/before_
+  after_<distortion>.png`): existing degraded/enhanced visualization PNGs
+  side by side.
+- One genuinely new plot: `baseline/task2/baseline_metrics.png` (mean
+  `inlier_ratio`/`match_ratio` bar chart) — no prior plot covered Task 2's
+  baseline alone, but it's a direct re-plot of `baseline_per_pair.csv`
+  columns, not a re-run.
+
+Handled one known real gap gracefully: `task2/low_light/level_8` has no
+saved visualization (matching failed completely at that severity) — the
+grid-building code draws a labeled gray placeholder instead of crashing or
+leaving a confusing blank cell.
+
+**Step 2 — full README rewrite**, using the user's template verbatim as the
+structure/section order, filling every placeholder with real content:
+methodology explanations (from the actual code, not invented), the actual
+severity-level parameter/SNR tables (pulled from `outputs/csv_results/
+task1/level_summary.csv`), and all real result numbers already established
+this session. All images now point into `docs/readme_assets/...` instead of
+directly into `outputs/`/`data/` — solves the earlier git-sharing problem
+(raw `data/*.jpg` and some `outputs/*.png` paths would otherwise be
+gitignored or bulky) by consolidating everything the README needs into one
+deliberately-shareable folder.
+
+**Verification:** same check as before — programmatically confirmed all 37
+embedded image paths in the new README resolve to existing files. Removed
+the now-orphaned flat `docs/readme_assets/distortion_grid_*.png` files
+(superseded by the nested `distortions/<name>/grid_levels_1_to_9.png`
+versions) after confirming zero remaining references to them.
+
+---
+
+## Addendum — final asset spec refinement (2026-07-17)
+
+The user provided a precise, final image/graph checklist (organized by
+Part 1-5), which superseded some choices made in `build_readme_assets.py`'s
+first version:
+- **Severity columns changed from levels 2/5/8 ("low/medium/high") to
+  literally levels 1/5/9**, per the exact spec.
+- **Row order changed** from `[low_light, motion_blur, rain]` to
+  `[motion_blur, low_light, rain]` for every 3x3 comparison grid.
+- **New requirement not previously built:** Part 4 needs a 3x3 grid of
+  *enhanced* results (rows=distortion, cols=level 1/5/9), parallel to the
+  existing distorted-results grid, per task —
+  `enhancements/task{n}/grid_enhanced_by_distortion_and_severity.png`.
+  Added `build_comparison_grid(stage="degraded"|"enhanced", ...)`, a single
+  parameterized function now used for both the distortion-results and
+  enhancement-results grids (previously two near-duplicate functions).
+- **`distortions/` grids no longer depend on the old flat `docs/readme_
+  assets/distortion_grid_*.png` files** (which were deleted in the previous
+  session) — `build_distortions()` now regenerates the 9-level showcase
+  grids directly from the sample image + `augmentation_levels.py`'s
+  functions, inline, rather than copying a pre-existing file.
+- **Fine-tuning training visualizations included**: the spec said "Images:
+  NONE (unless training visualizations exist)" — checked
+  `Amit_project/runs/detect/train-2/` and found `results.png` (loss/metric
+  curves) and `confusion_matrix.png` do exist (ultralytics writes these
+  automatically), so both were added to `finetuning/`.
+
+Verified: `task2`'s known gap widened slightly at the new levels checked —
+both level 8 *and* level 9 have no saved visualization for `low_light`
+(matching failed completely from level 8 onward), still handled by the
+existing gray-placeholder fallback, not a new bug.
+
+Re-ran the full script; all outputs verified present and visually spot-checked.
+
+---
+
+## Addendum — README synced to final asset spec (2026-07-17)
+
+Updated `README.md` to match the refined `build_readme_assets.py` output:
+- Part 3.2 (distortion results): row/column descriptions corrected to
+  "motion_blur / low_light / rain" and "Level 1 / Level 5 / Level 9" for
+  all three tasks (previously said "low/medium/high, levels 2/5/8"). Task
+  2's known-gap note updated from "level 8" to "level 9" (the actual level
+  where the last visualization still exists is level 7; 8 and 9 both fail).
+- Part 4 (enhancement results): added the 3 new
+  `grid_enhanced_by_distortion_and_severity.png` images, one per task.
+- Part 5.2 (training setup): added the two training-visualization images
+  (`training_curves.png`, `training_confusion_matrix.png`).
+
+Verified: all 42 embedded images (up from 37) resolve to existing files.
+
+---
+
+## Addendum — single metric per task (2026-07-17, user-requested reduction)
+
+The user asked to reduce each task to exactly one reported metric,
+delegating the choice to Claude ("you pick the best one and delete the
+other(s)"). Task 1 already had one (`survival_rate`), untouched.
+
+**Task 2 — kept `match_ratio_vs_baseline`, dropped `inlier_ratio`.**
+Justification: `inlier_ratio` measured flat/noisy across every severity
+level in the actual data (RANSAC's geometric check is fairly binary
+regardless of how few candidates remain) — it never told a robustness
+story. `match_ratio_vs_baseline` (the metric fixed earlier this session)
+decreases monotonically with SNR and correctly shows enhancement recovery.
+
+**Task 3 — kept `matched_recall`, dropped `mean_iou_matched` and
+`retention_ratio`.** Justification: `mean_iou_matched` stayed nearly flat
+(0.82-0.86) across every severity level in the actual data — the dominant
+failure mode under distortion is missed detections, not inaccurate boxes,
+so IoU carries no robustness signal here. `matched_recall` is both the
+standard object-detection metric and the one that actually moves with
+severity/enhancement/fine-tuning.
+
+**Implementation (not just README):**
+- `run_feature_matching_degradation.py`: `level_summary.csv` no longer has
+  an `inlier_ratio` column; `inlier_ratio_vs_snr.png`/`inlier_ratio_per_
+  distortion.png` no longer generated. `inlier_ratio` is still computed
+  per-pair (RANSAC needs it internally) and left in the raw
+  `degraded_per_pair.csv`/`enhanced_per_pair.csv` as harmless data, just no
+  longer aggregated or plotted.
+- `run_vehicle_detection_degradation.py`: same pattern —
+  `level_summary.csv`/`level_summary_per_class.csv` now only have
+  `matched_recall`; `iou_vs_snr.png`, `iou_per_distortion.png`,
+  `per_class_iou_clean.png`, `iou_vs_snr_{car,truck,bus}.png` no longer
+  generated. `mean_iou_matched`/`retention_ratio` stay in the raw per-image
+  CSVs (cheap byproduct of the same IoU-matching call).
+- `compare_finetuned_vs_pretrained.py`: drops the IoU three-way comparison,
+  keeps only the recall one.
+- `tools/build_readme_assets.py`: updated to stop copying/generating any
+  of the now-removed plots; Task 2's baseline-metrics chart is now a
+  single bar instead of two.
+- Existing CSVs/plots were **not regenerated via a full pipeline re-run**
+  — the raw per-pair/per-image CSVs already had all underlying columns, so
+  `level_summary.csv` files and the affected plots were rebuilt directly
+  from those existing CSVs (fast, no detector/matcher re-invocation), and
+  the 9 now-obsolete plot files were deleted.
+- `README.md`: sections 2.2 (metrics table + per-task explanations, now
+  documenting the dropped metric and why), 2.3 (baseline results), 3.2
+  (distortion results), 4.2 (enhancement results per task), and 5.3
+  (fine-tuning comparison) all updated to remove the dropped-metric
+  images/text.
+
+**Verification:** all touched Python files re-compiled cleanly; confirmed
+zero `*iou*`/`*inlier*` files remain under `docs/readme_assets/`; confirmed
+all 36 remaining embedded README images (down from 42) resolve to existing
+files.
+
+---
+
+**Addendum — swapped Task 2's example frame pair (2026-07-20).** The
+sample pair used throughout the README for Task 2 (`00e9be89-00000015`/
+`00e9be89-00000100`) showed a large scene change between frames, making the
+ORB feature matching hard to see clearly. User pointed to an existing,
+much clearer result already on disk
+(`outputs/visualizations/task2/baseline_visualizations/match_00e9be89-00000100__00e9be89-00000105.png`,
+also two consecutive frames) and asked for it to replace the old pair
+everywhere.
+
+**Implementation:**
+- `tools/build_readme_assets.py`: `TASK2_SAMPLE_PAIR` changed from
+  `("00e9be89-00000015", "00e9be89-00000100")` to
+  `("00e9be89-00000100", "00e9be89-00000105")`.
+- The new pair had no saved degraded/enhanced visualizations yet (only
+  baseline) — only the first pair per level gets `save_visualization=True`
+  during a full production run, and this pair wasn't that first pair.
+  Generated the missing ones with a one-off script calling
+  `process_pair`/`enhancements.ENHANCEMENTS` directly for just this pair,
+  at levels 1/5/9 (degraded) and level 5 (enhanced), for all 3 distortions.
+  All succeeded except `low_light`/level 9 — ORB finds zero surviving
+  descriptors for this pair at that severity (`[WARN] No descriptors found
+  for pair`), a genuine result (same pattern already documented for the
+  old pair), not a bug. `docs/readme_assets/`'s existing `img_or_placeholder`
+  gray-placeholder logic handles this gap automatically.
+- Re-ran `tools/build_readme_assets.py` to regenerate all Task 2 assets
+  under `docs/readme_assets/{baseline,distortion_results,enhancements}/task2/`
+  with the new pair.
+- `README.md`: both embedded image paths referencing the old pair's
+  filename (`match_00e9be89-00000015__00e9be89-00000100.png`, in the Part 2
+  baseline section and the Part 5 fine-tuning section) updated to the new
+  filename (`match_00e9be89-00000100__00e9be89-00000105.png`). The
+  Known-Issues note about `low_light` level 9 having no visualization
+  already applied generically (same distortion/level) and needed no wording
+  change.
+
+**Verification:** confirmed all 36 embedded README images still resolve to
+existing files after the swap.
+
+---
+
+**Addendum — `.gitignore` fix + summary PPT (2026-07-20).**
+
+**`.gitignore`:** the blanket `*.png`/`*.jpg`/`*.jpeg` rule (present since
+before this session) was silently excluding every result graph and
+visualization under `outputs/` and `docs/readme_assets/` from git, which
+would have made the shared repo useless to a teammate/grader without
+re-running the whole pipeline. Added two negation rules right after the
+blanket rule: `!outputs/**/*.png` and `!docs/readme_assets/**/*.png`.
+Also added `Amit_project/runs/` to `.gitignore` (33MB of duplicate
+`ultralytics` training-run artifacts, already summarized into
+`docs/readme_assets/finetuning/`). Verified with `git check-ignore -q` on
+representative paths: result PNGs are no longer ignored, `runs/` still is.
+Also filled in both teammates' real emails in the README's Team table
+(previously `TODO (fill in)`).
+
+**Summary PPT:** built `docs/Project_Summary.pptx` — a 14-slide deck
+condensing the README for presentation (overview, dataset, the 3 tasks,
+metrics, distortions, results/enhancement/fine-tuning charts, known
+issues, conclusion). Deviation from the skill's default workflow: this
+machine has no Node.js, no working `pip install` (blocked by a local
+SSL/proxy issue, same constraint hit earlier extracting Task 3's GT), and
+no LibreOffice, so the usual `pptxgenjs`-script / `soffice`-render path
+wasn't available. Built the `.pptx` directly as an OOXML package using
+only Python's standard library (`zipfile` + hand-written slide/theme/
+layout/master XML) — script kept at
+`C:\Users\amit\AppData\Local\Temp\claude\...\scratchpad\ppt\genpptx.py`
+(scratch, not part of the repo). QA done without a renderer: verified zip
+integrity (`zipfile.testzip()`), dumped every slide's text runs via regex
+over the raw XML to check for typos/placeholder text, and manually
+re-checked every slide's coordinate math for overlaps/margins (caught and
+fixed two near-overlaps: a caption crowding the footer on the Task 2
+slide, and a description line crowding its own heading on the distortions
+slide). Also fixed a real bug caught during QA: multi-run text blocks
+(e.g. name+email) had raw `\n` characters embedded inside a single
+`<a:t>` element, which isn't a reliable line break in OOXML — reworked
+the paragraph-splitting logic to split per-run before building `<a:p>`
+elements, confirmed no literal newlines remain inside any `<a:t>`.

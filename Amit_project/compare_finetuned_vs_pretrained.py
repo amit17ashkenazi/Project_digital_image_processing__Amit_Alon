@@ -1,6 +1,9 @@
 """
 Part 4 -- final comparison: pretrained+distorted vs. pretrained+enhanced vs.
-fine-tuned+distorted, recall and IoU vs SNR (aggregate, class="all").
+fine-tuned+distorted, recall vs SNR (aggregate, class="all") -- recall is
+the project's single chosen Task 3 metric (2026-07-17, see TASKS.md); IoU
+is no longer plotted here (it stayed nearly flat across severity, so it
+didn't carry a robustness signal the way recall does).
 
 Usage:
     python compare_finetuned_vs_pretrained.py
@@ -25,7 +28,6 @@ def load_all_class_summary(csv_dir: Path, class_col_file="degraded_per_image.csv
     df_all = df[df["class"] == "all"]
     return df_all.groupby(["augmentation", "level"]).agg(
         matched_recall=("matched_recall", "mean"),
-        mean_iou_matched=("mean_iou_matched", "mean"),
         snr_db=("snr_db", "mean"),
     ).reset_index()
 
@@ -73,9 +75,6 @@ def main():
     plot_three_way(pretrained_distorted, pretrained_enhanced, finetuned_distorted,
                     "matched_recall", "Detection recall vs real GT",
                     out_dir / "finetuned_vs_pretrained_recall.png")
-    plot_three_way(pretrained_distorted, pretrained_enhanced, finetuned_distorted,
-                    "mean_iou_matched", "Mean IoU of matched detections",
-                    out_dir / "finetuned_vs_pretrained_iou.png")
 
     print("=== Mean recall across all levels ===")
     print("pretrained + distorted:", pretrained_distorted.groupby("augmentation")["matched_recall"].mean().to_dict())

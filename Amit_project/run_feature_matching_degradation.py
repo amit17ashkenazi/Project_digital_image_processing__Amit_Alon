@@ -15,9 +15,14 @@ fully in-memory, no augmented dataset is ever written to disk.
    matching restoration function from enhancements.py and re-run the
    pipeline again -- lets us compare distorted vs. enhanced vs. clean
    baseline.
-4. Plot match-accuracy (inlier_ratio, match_ratio) vs SNR per distortion,
-   with the clean baseline as a reference line, plus a distorted-vs-
-   enhanced-vs-clean comparison bar chart per distortion.
+4. Plot match_ratio_vs_baseline (the project's single chosen Task 2 metric,
+   2026-07-17 -- see TASKS.md) vs SNR per distortion, with the clean
+   baseline as a reference line, plus a distorted-vs-enhanced-vs-clean
+   comparison bar chart per distortion. `inlier_ratio` is still computed
+   and kept in the per-pair CSVs (harmless raw data, and RANSAC needs it
+   internally to build the matches in the first place), but is no longer
+   plotted or aggregated as a reported metric -- it stayed flat/noisy
+   across severity in practice, unlike match_ratio_vs_baseline.
 
 Usage examples
 --------------
@@ -198,43 +203,32 @@ def main():
     enhanced_df.to_csv(csv_dir / "enhanced_per_pair.csv", index=False)
 
     level_summary = distorted_df.groupby(["augmentation", "level"]).agg(
-        inlier_ratio=("inlier_ratio", "mean"),
-        match_ratio=("match_ratio", "mean"),
         match_ratio_vs_baseline=("match_ratio_vs_baseline", "mean"),
         n_good_matches=("n_good_matches", "mean"),
         snr_db=("snr_db", "mean"),
     ).reset_index()
     level_summary.to_csv(csv_dir / "level_summary.csv", index=False)
 
-    baseline_inlier = baseline_df["inlier_ratio"].mean()
     # baseline's own match_ratio_vs_baseline is 1.0 by definition (n_good_matches
     # measured against its own keypoint count, which IS the reference) -- use
     # its raw match_ratio as the reference line instead, for a meaningful number.
     baseline_match = baseline_df["match_ratio"].mean()
 
-    plot_metric_vs_snr(level_summary, baseline_inlier, "inlier_ratio",
-                        "Inlier ratio (match accuracy)",
-                        graph_dir / "inlier_ratio_vs_snr.png")
     plot_metric_vs_snr(level_summary, baseline_match, "match_ratio_vs_baseline",
                         "Match ratio (good matches / clean-baseline keypoints)",
                         graph_dir / "match_ratio_vs_snr.png")
 
-    plot_enhancement_comparison(distorted_df, enhanced_df, baseline_inlier, "inlier_ratio",
-                                 "Inlier ratio (match accuracy)",
-                                 graph_dir / "inlier_ratio_per_distortion.png")
     plot_enhancement_comparison(distorted_df, enhanced_df, baseline_match, "match_ratio_vs_baseline",
                                  "Match ratio (good matches / clean-baseline keypoints)",
                                  graph_dir / "match_ratio_per_distortion.png")
 
     print("\n=== Baseline (clean) ===")
-    print(f"  inlier_ratio={baseline_inlier:.3f}  match_ratio={baseline_match:.3f}")
+    print(f"  match_ratio={baseline_match:.3f}")
     print("\n=== Level summary (mean per augmentation/level, distorted) ===")
     print(level_summary.to_string(index=False))
     print("\n=== Enhanced vs distorted (mean over all levels) ===")
     print("distorted match_ratio_vs_baseline:", distorted_df.groupby("augmentation")["match_ratio_vs_baseline"].mean().to_dict())
     print("enhanced  match_ratio_vs_baseline:", enhanced_df.groupby("augmentation")["match_ratio_vs_baseline"].mean().to_dict())
-    print("distorted inlier_ratio:", distorted_df.groupby("augmentation")["inlier_ratio"].mean().to_dict())
-    print("enhanced  inlier_ratio:", enhanced_df.groupby("augmentation")["inlier_ratio"].mean().to_dict())
     print(f"\nCSVs written to {csv_dir.resolve()}")
     print(f"Plots written to {graph_dir.resolve()}")
     print(f"Visualizations written to {vis_dir.resolve()}")

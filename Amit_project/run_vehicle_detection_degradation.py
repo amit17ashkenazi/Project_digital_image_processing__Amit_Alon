@@ -17,8 +17,14 @@ baseline_vs_gt_metrics.csv.
    apply the distortion in RAM, compute its achieved SNR, run the same
    detector on the in-memory array, and IoU-match (class-aware) against real
    GT. Metrics are reported both per-class and aggregated ("all").
-3. Plot detection recall / mean IoU vs SNR per distortion, per class, with
-   the real baseline as a reference line.
+3. Plot detection recall (the project's single chosen Task 3 metric,
+   2026-07-17 -- see TASKS.md) vs SNR per distortion, per class, with the
+   real baseline as a reference line. `mean_iou_matched`/`retention_ratio`
+   are still computed and kept in the per-image CSVs (harmless raw data,
+   a cheap byproduct of the IoU-matching itself), but are no longer
+   plotted or aggregated as reported metrics -- mean IoU stayed nearly flat
+   (0.82-0.86) across every severity level in practice, so it didn't carry
+   a robustness signal the way recall does.
 
 Usage (run from inside Amit_project/):
     python run_vehicle_detection_degradation.py
@@ -300,8 +306,7 @@ def main():
 
     baseline_all = baseline_df[baseline_df["class"] == "all"]
     baseline_recall = baseline_all["matched_recall"].mean()
-    baseline_iou = baseline_all["mean_iou_matched"].mean()
-    print(f"\n[baseline vs GT] recall={baseline_recall:.3f}  mean_iou={baseline_iou:.3f}")
+    print(f"\n[baseline vs GT] recall={baseline_recall:.3f}")
 
     degraded_df, enhanced_df = run_degraded_in_memory(
         model, image_paths, gt_boxes, str(vis_dir), args.conf, args.iou,
@@ -311,8 +316,6 @@ def main():
 
     level_summary_all = degraded_df[degraded_df["class"] == "all"].groupby(["augmentation", "level"]).agg(
         matched_recall=("matched_recall", "mean"),
-        retention_ratio=("retention_ratio", "mean"),
-        mean_iou_matched=("mean_iou_matched", "mean"),
         snr_db=("snr_db", "mean"),
     ).reset_index()
     level_summary_all.to_csv(csv_dir / "level_summary.csv", index=False)
@@ -320,8 +323,6 @@ def main():
     level_summary_per_class = degraded_df[degraded_df["class"] != "all"].groupby(
         ["augmentation", "level", "class"]).agg(
         matched_recall=("matched_recall", "mean"),
-        retention_ratio=("retention_ratio", "mean"),
-        mean_iou_matched=("mean_iou_matched", "mean"),
         snr_db=("snr_db", "mean"),
     ).reset_index()
     level_summary_per_class.to_csv(csv_dir / "level_summary_per_class.csv", index=False)
@@ -329,12 +330,6 @@ def main():
     plot_metric_vs_snr(level_summary_all, baseline_recall, "matched_recall",
                         "Detection recall vs real GT",
                         graph_dir / "recall_vs_snr.png")
-    plot_metric_vs_snr(level_summary_all, baseline_iou, "mean_iou_matched",
-                        "Mean IoU of matched detections",
-                        graph_dir / "iou_vs_snr.png")
-    plot_per_class_metric_on_clean(baseline_df, "mean_iou_matched",
-                                    "IoU (mean, matched detections only)",
-                                    graph_dir / "per_class_iou_clean.png")
     plot_per_class_metric_on_clean(baseline_df, "matched_recall",
                                     "Recall (matched GT boxes / total GT boxes)",
                                     graph_dir / "per_class_recall_clean.png")
@@ -342,15 +337,12 @@ def main():
     plot_enhancement_comparison(degraded_df, enhanced_df, baseline_recall, "matched_recall",
                                  "Detection recall vs real GT",
                                  graph_dir / "recall_per_distortion.png")
-    plot_enhancement_comparison(degraded_df, enhanced_df, baseline_iou, "mean_iou_matched",
-                                 "Mean IoU of matched detections",
-                                 graph_dir / "iou_per_distortion.png")
 
     for cls in VEHICLE_CLASSES:
         cls_summary = level_summary_per_class[level_summary_per_class["class"] == cls]
-        # A class can show up here with rows that are all-NaN recall/IoU if
-        # the detector produced a false-positive of that class somewhere but
-        # GT has zero real instances of it (cand_count > 0, ref_count == 0
+        # A class can show up here with rows that are all-NaN recall if the
+        # detector produced a false-positive of that class somewhere but GT
+        # has zero real instances of it (cand_count > 0, ref_count == 0
         # everywhere) -- that's not a meaningful per-class result, skip it
         # the same as if there were no rows at all.
         if cls_summary.empty or not cls_summary["matched_recall"].notna().any():
@@ -358,13 +350,9 @@ def main():
             continue
         cls_baseline = baseline_df[baseline_df["class"] == cls]
         cls_baseline_recall = cls_baseline["matched_recall"].mean() if not cls_baseline.empty else np.nan
-        cls_baseline_iou = cls_baseline["mean_iou_matched"].mean() if not cls_baseline.empty else np.nan
         plot_metric_vs_snr(cls_summary, cls_baseline_recall, "matched_recall",
                             f"Detection recall vs real GT ({cls})",
                             graph_dir / f"recall_vs_snr_{cls}.png")
-        plot_metric_vs_snr(cls_summary, cls_baseline_iou, "mean_iou_matched",
-                            f"Mean IoU of matched detections ({cls})",
-                            graph_dir / f"iou_vs_snr_{cls}.png")
 
     print("\n=== Level summary (mean per augmentation/level, all classes) ===")
     print(level_summary_all.to_string(index=False))
