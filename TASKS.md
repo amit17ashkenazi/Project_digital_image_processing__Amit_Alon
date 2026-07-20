@@ -1868,3 +1868,32 @@ slide). Also fixed a real bug caught during QA: multi-run text blocks
 `<a:t>` element, which isn't a reliable line break in OOXML — reworked
 the paragraph-splitting logic to split per-run before building `<a:p>`
 elements, confirmed no literal newlines remain inside any `<a:t>`.
+
+---
+
+**Addendum — PowerPoint was actually available; found and fixed a
+deck-wide alignment bug via real rendering (2026-07-20).** Discovered
+PowerPoint itself is installed on this machine (it was open, reviewing the
+just-built deck), which unlocked real rendering: used PowerShell COM
+automation (`New-Object -ComObject PowerPoint.Application`, `.SaveAs(...,
+32)` for PDF, `.Slides.Item(n).Export(...)` for per-slide PNGs) instead of
+the unavailable `pptxgenjs`/`soffice` path. Rendering the actual slides
+caught a real, deck-wide bug the earlier text-only QA couldn't see: any
+text block in `genpptx.py` that didn't explicitly pass `line_spacing` got
+no `<a:pPr>` element at all, and without one this machine's PowerPoint
+defaulted the paragraph to **right-aligned** instead of left — every
+label, card, and body paragraph across all 14 slides that relied on the
+left-align default was silently broken (visible clearly on slides 1 and
+4, where names/emails and the task-overview table hugged the right edge
+of their text boxes instead of the left). Fixed by always emitting an
+explicit `<a:pPr algn="...">` regardless of whether it equals the
+default. Re-rendered all 14 slides as PNG and reviewed each one; also
+caught and fixed a second, real overlap on the "Robustness Falls" slide
+(the subtitle line collided with the "Task 1/2/3" labels above the
+charts) by adjusting vertical spacing. Re-exported the corrected deck to
+both `.pptx` and `.pdf`.
+
+**Files placed at repo root** (per explicit request, so they open directly
+from the GitHub repo's front page without navigating into `docs/`):
+`Project_Summary.pptx`, `Project_Summary.pdf`. Removed the earlier
+`docs/Project_Summary.pptx` copy to avoid a duplicate.
