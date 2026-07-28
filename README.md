@@ -35,28 +35,32 @@ opencv-python, numpy, pandas, matplotlib, ultralytics, ijson
 — the repo's `requirements.txt` is currently out of date and should be
 regenerated from this list.)
 
-**Data:** clean images must be present under `data/clean_images/{1,2,3}_data_.../`
-(not tracked in git — see the Repository Structure section). Task 3 also
-needs `data/gt_labels/task3_vehicle_gt.csv` (real BDD100K ground truth,
-generate once with `src_Alon/helper_files/extract_task3_gt.py`).
+All source code lives under `source_code/` (see the Repository Structure
+section) — `cd source_code` first, then follow the paths below.
 
-**Task 1 — Lane Detection** (run from `src_Alon/lane_detection/`):
+**Data:** clean images must be present under
+`source_code/data/clean_images/{1,2,3}_data_.../` (not tracked in git — see
+the Repository Structure section). Task 3 also needs
+`source_code/data/gt_labels/task3_vehicle_gt.csv` (real BDD100K ground
+truth, generate once with `src_Alon/helper_files/extract_task3_gt.py`).
+
+**Task 1 — Lane Detection** (run from `source_code/src_Alon/lane_detection/`):
 ```bash
 python run_lane_detection_degradation.py --num_levels 9
 ```
 
-**Task 2 — Feature Matching** (run from `Amit_project/`):
+**Task 2 — Feature Matching** (run from `source_code/Amit_project/`):
 ```bash
 python run_feature_matching_degradation.py --num_levels 9
 ```
 
-**Task 3 — Vehicle Detection** (run from `Amit_project/`):
+**Task 3 — Vehicle Detection** (run from `source_code/Amit_project/`):
 ```bash
 python ../src_Alon/helper_files/extract_task3_gt.py   # once, before the first run
 python run_vehicle_detection_degradation.py --num_levels 9
 ```
 
-**Fine-Tuning** (Task 3 only, run from `Amit_project/`):
+**Fine-Tuning** (Task 3 only, run from `source_code/Amit_project/`):
 ```bash
 python build_finetune_dataset.py
 python finetune_vehicle_detection.py
@@ -65,7 +69,7 @@ python compare_finetuned_vs_pretrained.py
 
 Every driver runs fully in-memory for evaluation (distorted/enhanced images
 are never bulk-written to disk) and defaults to writing CSVs/plots/sample
-images to `outputs/{csv_results,graph_results,visualizations}/task{n}/`.
+images to `source_code/outputs/{csv_results,graph_results,visualizations}/task{n}/`.
 
 ---
 
@@ -597,45 +601,50 @@ information loss is severe enough that neither approach fully recovers it.
 # 7. Repository Structure
 
 ```
-config.py                            # central path config, shared constants, BDD100K category map
-enhancements.py                      # Part 4 restoration functions per distortion (shared, all 3 tasks)
+Project_Summary.pptx / Project_Summary.pdf  # summary deck for presentation
+README.md, TASKS.md, .gitignore
 
-Amit_project/
-  augmentations_AMIT.py              # distortion functions: apply_motion_blur / apply_low_light / apply_rain
-  augmentation_levels.py             # builds the 9 severity levels + SNR computation (shared, all 3 tasks)
-  feature_matching_bdd100k.py        # ORB feature matching core (process_pair)
-  vehicle_detection_bdd100k.py       # YOLOv8n detection core (process_image)
-  run_feature_matching_degradation.py  # Task 2 driver: baseline + distorted + enhanced sweep
-  run_vehicle_detection_degradation.py # Task 3 driver: baseline + distorted + enhanced sweep, real GT, per-class
-  build_finetune_dataset.py          # Fine-tuning: distorted training set + real-GT labels
-  finetune_vehicle_detection.py      # Fine-tuning: fine-tune yolov8n.pt
-  compare_finetuned_vs_pretrained.py # Fine-tuning: final comparison plots
-  yolov8n.pt / yolov8n_finetuned.pt  # pretrained / fine-tuned YOLOv8-nano weights
+source_code/                         # all source code, data, and generated outputs
+  config.py                          # central path config, shared constants, BDD100K category map
+  enhancements.py                    # Part 4 restoration functions per distortion (shared, all 3 tasks)
+  requirements.txt
 
-src_Alon/
-  lane_detection/
-    lane_detection_pipeline.py       # Task 1 core (process_image)
-    run_lane_detection_degradation.py  # Task 1 driver: baseline + distorted + enhanced sweep
-  helper_files/
-    extract_task3_gt.py              # extracts real BDD100K box2d GT for Task 3's image subset
-    filter_bdd100k.py, import_tags.py  # BDD100K dataset curation utilities
-  archive/                            # superseded disk-based Task 1 scripts, kept for reference
+  Amit_project/
+    augmentations_AMIT.py            # distortion functions: apply_motion_blur / apply_low_light / apply_rain
+    augmentation_levels.py           # builds the 9 severity levels + SNR computation (shared, all 3 tasks)
+    feature_matching_bdd100k.py      # ORB feature matching core (process_pair)
+    vehicle_detection_bdd100k.py     # YOLOv8n detection core (process_image)
+    run_feature_matching_degradation.py  # Task 2 driver: baseline + distorted + enhanced sweep
+    run_vehicle_detection_degradation.py # Task 3 driver: baseline + distorted + enhanced sweep, real GT, per-class
+    build_finetune_dataset.py        # Fine-tuning: distorted training set + real-GT labels
+    finetune_vehicle_detection.py    # Fine-tuning: fine-tune yolov8n.pt
+    compare_finetuned_vs_pretrained.py # Fine-tuning: final comparison plots
+    yolov8n.pt / yolov8n_finetuned.pt  # pretrained / fine-tuned YOLOv8-nano weights
 
-tools/
-  build_readme_assets.py             # fills docs/readme_assets/ from existing outputs (this README's images)
-  build_distortion_grids.py          # generates the 9-level distortion example grids
-  make_smoke_test_sample.py          # small dev sample for fast iteration/quick-checks
+  src_Alon/
+    lane_detection/
+      lane_detection_pipeline.py     # Task 1 core (process_image)
+      run_lane_detection_degradation.py  # Task 1 driver: baseline + distorted + enhanced sweep
+    helper_files/
+      extract_task3_gt.py            # extracts real BDD100K box2d GT for Task 3's image subset
+      filter_bdd100k.py, import_tags.py  # BDD100K dataset curation utilities
+    archive/                          # superseded disk-based Task 1 scripts, kept for reference
 
-data/
-  clean_images/                      # raw BDD100K image subsets (NOT in git — see .gitignore)
-  gt_labels/task3_vehicle_gt.csv      # real BDD100K GT for Task 3 (tracked in git, small)
-  finetune_dataset/                  # fine-tuning training set (regenerable, images not in git)
+  tools/
+    build_readme_assets.py           # fills docs/readme_assets/ from existing outputs (this README's images)
+    build_distortion_grids.py        # generates the 9-level distortion example grids
+    make_smoke_test_sample.py        # small dev sample for fast iteration/quick-checks
 
-outputs/
-  csv_results/task{1,2,3}/           # CSVs (baseline, degraded, enhanced, level summaries)
-  graph_results/task{1,2,3}/         # summary plots (bar/line charts)
-  visualizations/task{1,2,3}/        # before/after/enhanced sample images
-outputs_finetuned/task3/             # fine-tuned model's sweep results
+  data/
+    clean_images/                    # raw BDD100K image subsets (NOT in git — see .gitignore)
+    gt_labels/task3_vehicle_gt.csv    # real BDD100K GT for Task 3 (tracked in git, small)
+    finetune_dataset/                # fine-tuning training set (regenerable, images not in git)
+
+  outputs/
+    csv_results/task{1,2,3}/         # CSVs (baseline, degraded, enhanced, level summaries)
+    graph_results/task{1,2,3}/       # summary plots (bar/line charts)
+    visualizations/task{1,2,3}/      # before/after/enhanced sample images
+  outputs_finetuned/task3/           # fine-tuned model's sweep results
 
 docs/
   3002_CousreProject.pdf             # course assignment brief

@@ -6,7 +6,7 @@
 # ...except the README's own result images/graphs -- these must be
 # shareable via git so teammates/graders can see them without re-running
 # anything.
-!outputs/**/*.png
+!source_code/outputs/**/*.png
 !docs/readme_assets/**/*.png
 !docs/readme_assets/**/*.jpg
 
@@ -21,7 +21,7 @@ env
 
 # Duplicate fine-tuning training artifacts (already summarized into
 # docs/readme_assets/finetuning/) -- large (33MB) and not needed in git.
-Amit_project/runs/
+source_code/Amit_project/runs/
 
 # Office lock/temp files (created while a doc is open in Word/PowerPoint)
 ~$*
